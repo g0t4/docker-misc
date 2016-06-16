@@ -1,0 +1,33 @@
+version: '2'
+
+
+# Query consul's DNS
+# dig @$(docker-machine ip dev) -p 8600 google.com
+# should return recursion false
+
+# Query dnsmasq
+# dig @$(docker-machine ip dev) consul.service.consul SRV 
+# should return IP of container
+#
+# dig @$(docker-machine ip dev) google.com
+# regular dns lookup
+
+services:
+    dnsmasq: # https://hub.docker.com/r/andyshinn/dnsmasq/
+        image: andyshinn/dnsmasq
+        ports:
+            # Open dnsmasq's dns
+            - "53:53/udp"
+            # Open consul's dns just to be able to test with it
+            - "8600:8600/udp"
+            # Optional consul ui, could use api to add services
+            - "8500:8500"
+        cap_add:
+            - NET_ADMIN
+        # forward queries for the consul domain upstream to consul, the rest will go to servers in /etc/resolv.conf
+        command: -S /consul/127.0.0.1#8600
+    consul-dev:
+        image: consul
+        command: consul agent -dev -data-dir /tmp/consul -ui -client 0.0.0.0
+        # share network stack with dnsmasq container -> simplify consul as upstream on localhost nic 
+        network_mode: "service:dnsmasq"
